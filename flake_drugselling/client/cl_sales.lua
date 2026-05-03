@@ -105,12 +105,13 @@ local function findSafeSpawnCoords(playerPed)
             local tx    = pos.x + math.cos(angle) * dist
             local ty    = pos.y + math.sin(angle) * dist
 
-            local found, nx, ny, nz = GetClosestVehicleNode(tx, ty, pos.z, 1, 3.0, 0)
-            if found then
-                if #(vector3(nx, ny, nz) - vector3(tx, ty, pos.z)) <= maxSnap then
-                    local gFound, groundZ = GetGroundZFor_3dCoord(nx, ny, pos.z + 2.0, false)
+            -- FiveM returns (bool, Vector3) for GetClosestVehicleNode
+            local found, nodePos = GetClosestVehicleNode(tx, ty, pos.z, 1, 3.0, 0)
+            if found and nodePos then
+                if #(nodePos - vector3(tx, ty, pos.z)) <= maxSnap then
+                    local gFound, groundZ = GetGroundZFor_3dCoord(nodePos.x, nodePos.y, pos.z + 2.0, false)
                     if gFound then
-                        return vector3(nx, ny, groundZ)
+                        return vector3(nodePos.x, nodePos.y, groundZ)
                     end
                 end
             end
