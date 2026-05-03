@@ -182,11 +182,11 @@ Config.PedList = {
 }
 
 
-Config.Offsets = {
-    [1] = {x = 0.0, y = 15.0, z = 0.0},
-    [2] = {x = 0.0, y = 16.0, z = 0.0},
-    [3] = {x = 0.0, y = 17.0, z = 0.0},
-    [4] = {x = 0.0, y = 18.0, z = 0.0},
-    [5] = {x = 0.0, y = 19.0, z = 0.0},
-    [6] = {x = 0.0, y = 20.0, z = 0.0},
-}
+-- Customer spawn ranges (road-node snapped, close range first then fallback to far)
+-- Close range gives better pathfinding on custom maps/MLOs
+Config.SpawnCloseMin = 15.0   -- minimum distance for close-range attempt
+Config.SpawnCloseMax = 25.0   -- maximum distance for close-range attempt
+Config.SpawnFarMin   = 35.0   -- minimum distance for far-range fallback
+Config.SpawnFarMax   = 55.0   -- maximum distance for far-range fallback
+-- Max meters the road node can deviate from the ideal spawn point (avoids circling on MLO maps)
+Config.SpawnWaypointMaxSnapOffLine = 25.0
