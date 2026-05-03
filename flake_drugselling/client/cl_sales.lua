@@ -85,6 +85,43 @@ local function despawnBuyerPed(ped)
 end
 
 -- ============================================================
+-- SAFE SPAWN HELPER
+-- Try close range first (better pathfinding), fall back to far range
+-- Snaps to nearest road node so ped never spawns inside walls/cars
+-- ============================================================
+
+local function findSafeSpawnCoords(playerPed)
+    local pos      = GetEntityCoords(playerPed)
+    local closeMin = Config.SpawnCloseMin              or 15.0
+    local closeMax = Config.SpawnCloseMax              or 25.0
+    local farMin   = Config.SpawnFarMin                or 35.0
+    local farMax   = Config.SpawnFarMax                or 55.0
+    local maxSnap  = Config.SpawnWaypointMaxSnapOffLine or 25.0
+
+    local function tryRange(rMin, rMax, attempts)
+        for _ = 1, attempts do
+            local angle = math.random() * 6.28318
+            local dist  = rMin + math.random() * (rMax - rMin)
+            local tx    = pos.x + math.cos(angle) * dist
+            local ty    = pos.y + math.sin(angle) * dist
+
+            local found, nx, ny, nz = GetClosestVehicleNode(tx, ty, pos.z, 1, 3.0, 0)
+            if found then
+                if #(vector3(nx, ny, nz) - vector3(tx, ty, pos.z)) <= maxSnap then
+                    local gFound, groundZ = GetGroundZFor_3dCoord(nx, ny, pos.z + 2.0, false)
+                    if gFound then
+                        return vector3(nx, ny, groundZ)
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    return tryRange(closeMin, closeMax, 6) or tryRange(farMin, farMax, 6)
+end
+
+-- ============================================================
 -- ROBBERY LOGIC
 -- ============================================================
 
@@ -130,7 +167,7 @@ local function startRobbery(ped, drugItem, drugCount)
             {
                 name   = "flake_drugselling:knockoutRobber",
                 icon   = "fa-solid fa-hand-fist",
-                label  = "Knock Out",
+                label  = "Take Drugs Back",
                 distance = 2.0,
                 canInteract = function(entity, distance)
                     return isRobberyActive and distance < 2.0
@@ -145,7 +182,7 @@ local function startRobbery(ped, drugItem, drugCount)
             options = {
                 {
                     icon   = "fa-solid fa-hand-fist",
-                    label  = "Knock Out",
+                    label  = "Take Drugs Back",
                     action = function()
                         knockoutRobber(ped)
                     end
@@ -181,7 +218,7 @@ local function startRobbery(ped, drugItem, drugCount)
                 local pp   = GetEntityCoords(PlayerPedId())
                 local ep   = GetEntityCoords(ped)
                 if #(ep - pp) < 2.0 then
-                    Config.showTextUI('[E] - Knock Out Robber')
+                    Config.showTextUI('[E] - Take Drugs Back')
                     if IsControlJustPressed(1, 38) then
                         Config.hideTextUI()
                         knockoutRobber(ped)
@@ -234,18 +271,19 @@ function knockoutRobber(ped)
 
     local playerPed = PlayerPedId()
 
-    -- Play a quick punch anim
-    RequestAnimDict("melee@unarmed@streamed_core_fps")
-    while not HasAnimDictLoaded("melee@unarmed@streamed_core_fps") do
+    -- Player crouches down and takes the drugs back from the downed ped
+    RequestAnimDict("anim@gangops@facility@yacht@goon_search@ground@")
+    while not HasAnimDictLoaded("anim@gangops@facility@yacht@goon_search@ground@") do
         Wait(0)
     end
-    TaskPlayAnim(playerPed, "melee@unarmed@streamed_core_fps", "straight_right", 8.0, -8.0, 800, 0, 0, false, false, false)
+    TaskPlayAnim(playerPed, "anim@gangops@facility@yacht@goon_search@ground@", "low_crouch_idle", 8.0, -8.0, 2200, 1, 0, false, false, false)
 
-    Wait(1200)
+    Wait(2200)
+    ClearPedTasks(playerPed)
 
     -- Return stolen drugs to player via server
     TriggerServerEvent("flake_drugselling:server:returnStolenDrugs", stolenDrugItem, stolenDrugCount)
-    Config.Notify(string.format("You knocked him out and got your %s x%d back!", stolenDrugItem, stolenDrugCount), "success")
+    Config.Notify(string.format("You took your %s x%d back!", stolenDrugItem, stolenDrugCount), "success")
 
     -- Clear robbery state
     isRobberyActive = false
@@ -329,38 +367,58 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
     RequestModel(buyerData.hash)
     while not HasModelLoaded(buyerData.hash) do Wait(0) end
 
-    buyerData.offset = Config.Offsets[math.random(1, #Config.Offsets)]
-    buyerData.coords = GetOffsetFromEntityInWorldCoords(playerPed, buyerData.offset.x, buyerData.offset.y, buyerData.offset.z or 0.0)
-
-    local found, groundZ = GetGroundZFor_3dCoord(buyerData.coords.x, buyerData.coords.y, buyerData.coords.z, 0)
-    if not found then
-        Config.Notify(Config.Notifications.buyerScared, "error")
+    -- Road-snapped spawn: close range first, far range fallback
+    local spawnCoords = findSafeSpawnCoords(playerPed)
+    if not spawnCoords then
         buyerSpawned = false
         Wait(5000)
         if isSelling then TriggerEvent("flake_drugselling:spawnBuyer") end
         return
     end
 
-    buyerData.ped = CreatePed(4, buyerData.hash, buyerData.coords.x, buyerData.coords.y, groundZ, 0.0, true, false)
+    buyerData.ped = CreatePed(4, buyerData.hash, spawnCoords.x, spawnCoords.y, spawnCoords.z, 0.0, true, false)
     SetEntityAsMissionEntity(buyerData.ped, true, true)
-    SetBlockingOfNonTemporaryEvents(buyerData.ped, true) -- ignore ambient events so ped doesn't flee on its own
+    SetBlockingOfNonTemporaryEvents(buyerData.ped, true)
+    ClearEntityLastDamageEntity(buyerData.ped)
     PlaceObjectOnGroundProperly(buyerData.ped)
 
     local playerCoords = GetEntityCoords(playerPed)
-    TaskGoToCoordAnyMeans(buyerData.ped, playerCoords.x, playerCoords.y, playerCoords.z, 2.0, 0, 0, 786603, 3212836864)
+    TaskGoToCoordAnyMeans(buyerData.ped, playerCoords.x, playerCoords.y, playerCoords.z, 1.5, 0, 0, 786603, 3212836864)
 
     currentBuyerPed = buyerData.ped
 
-    -- Follow-player thread
+    -- Follow-player thread: walks to player then stops — never pushes when already close
     Citizen.CreateThread(function()
-        local lastUpdate = GetGameTimer()
+        local lastMoveUpdate = GetGameTimer()
+        local lastIdleUpdate = GetGameTimer()
+        local isWaiting      = false
         while buyerSpawned and DoesEntityExist(buyerData.ped) and currentBuyerPed == buyerData.ped do
-            if GetGameTimer() - lastUpdate > 2000 then
-                local pp = GetEntityCoords(PlayerPedId())
-                TaskGoToCoordAnyMeans(buyerData.ped, pp.x, pp.y, pp.z, 2.0, 0, 0, 786603, 3212836864)
-                lastUpdate = GetGameTimer()
-            end
             Wait(500)
+            if isSaleAnimating then goto followContinue end
+
+            local pp   = GetEntityCoords(PlayerPedId())
+            local ep   = GetEntityCoords(buyerData.ped)
+            local dist = #(ep - pp)
+
+            if dist > 3.0 then
+                isWaiting = false
+                if GetGameTimer() - lastMoveUpdate > 2000 then
+                    TaskGoToCoordAnyMeans(buyerData.ped, pp.x, pp.y, pp.z, 1.5, 0, 0, 786603, 3212836864)
+                    lastMoveUpdate = GetGameTimer()
+                end
+            else
+                if not isWaiting then
+                    isWaiting = true
+                    ClearPedTasks(buyerData.ped)
+                end
+                -- Periodically re-face the player so ped stays attentive without drifting
+                if GetGameTimer() - lastIdleUpdate > 2000 then
+                    TaskTurnPedToFaceEntity(buyerData.ped, PlayerPedId(), 1500)
+                    lastIdleUpdate = GetGameTimer()
+                end
+            end
+
+            ::followContinue::
         end
     end)
 
@@ -395,7 +453,58 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
         })
     end
 
-    local spawnTime   = GetGameTimer()
+    local spawnTime      = GetGameTimer()
+    local pedHitCount    = 0
+    local spookedAlready = false
+
+    -- Spook detection: weapon drawn nearby, punched twice, or hit by a vehicle
+    Citizen.CreateThread(function()
+        while buyerSpawned and DoesEntityExist(buyerData.ped) and currentBuyerPed == buyerData.ped do
+            Wait(300)
+            if spookedAlready or isSaleAnimating then break end
+
+            local pp = GetEntityCoords(PlayerPedId())
+            local ep = GetEntityCoords(buyerData.ped)
+
+            if #(ep - pp) < 10.0 then
+                -- Weapon drawn
+                local weapon = GetSelectedPedWeapon(PlayerPedId())
+                if weapon ~= GetHashKey("WEAPON_UNARMED") then
+                    spookedAlready = true
+                end
+
+                -- Hit by player (2 strikes before spook)
+                if not spookedAlready and HasEntityBeenDamagedBy(buyerData.ped, PlayerPedId()) then
+                    ClearEntityLastDamageEntity(buyerData.ped)
+                    pedHitCount = pedHitCount + 1
+                    if pedHitCount >= 2 then
+                        spookedAlready = true
+                    end
+                end
+
+                -- Hit by any vehicle
+                if not spookedAlready and HasEntityBeenDamagedByAnyVehicle(buyerData.ped) then
+                    spookedAlready = true
+                end
+            end
+
+            if spookedAlready then break end
+        end
+
+        if spookedAlready and buyerSpawned and currentBuyerPed == buyerData.ped then
+            Config.hideTextUI()
+            Config.Notify(Config.Notifications.buyerSpooked, "error")
+            removeTargetFromEntity(buyerData.ped)
+            hardDeletePed(buyerData.ped)
+            buyerSpawned    = false
+            currentBuyerPed = nil
+            Citizen.SetTimeout(5000, function()
+                if isSelling and not isSaleAnimating then
+                    TriggerEvent("flake_drugselling:spawnBuyer")
+                end
+            end)
+        end
+    end)
 
     -- Main interaction thread
     Citizen.CreateThread(function()
@@ -527,12 +636,12 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
                 return
             end
 
-            -- Timeout (30s)
+            -- 30s timeout: customer got impatient and walked away (not a spook)
             if GetGameTimer() - spawnTime > 30000 then
                 Config.hideTextUI()
-                Config.Notify(Config.Notifications.buyerSpooked, "error")
+                Config.Notify("The customer got impatient and walked away.", "inform")
                 removeTargetFromEntity(buyerData.ped)
-                hardDeletePed(buyerData.ped)
+                despawnBuyerPed(buyerData.ped)
                 buyerSpawned    = false
                 currentBuyerPed = nil
                 Wait(5000)
@@ -676,7 +785,8 @@ function sell_ped(buyerPed, drugItem, drugCount)
     while not HasModelLoaded(1597489407) do Wait(0) end
 
     local moneyProp = CreateObject(1597489407, 0, 0, 0, true, true, true)
-    AttachEntityToEntity(moneyProp, buyerPed, GetPedBoneIndex(buyerPed, 60309), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, true, true, false, true, 1, true)
+    -- Attach money to ped's LEFT hand (PH_L_Hand = 57005) so it's in the opposite hand from the drug bag
+    AttachEntityToEntity(moneyProp, buyerPed, GetPedBoneIndex(buyerPed, 57005), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, true, true, false, true, 1, true)
 
     TaskPlayAnim(buyerPed, "mp_common", "givetake1_a", 8.0, -8.0, -1, 50, 0, false, false, false)
     Wait(500)
