@@ -4,11 +4,18 @@ Config.ESXgetSharedObject = 'es_extended'
 Config.QBCoreGetCoreObject = 'qb-core'
 Config.NpcFightOnReject = true
 Config.RejectionChance = 40
-Config.System = 'ox_target'  -- 'textui' | 'ox_target' | 'qb-target'
-
+Config.System = 'textui'  -- 'textui' | 'ox_target' | 'qb-target'
+Config.NpcFightOnReject = true
 Config.QBoxVehicleFix = false -- true = to fix the giving vehicle issue with QBox ONLY. (leave it false if you don't use QBox)
-
 Config.Debug = true -- Enable debug commands (testcarlevelup, testitemlevelup, testrankup)
+Config.UIcolor = "#13479b"  -- Main UI color (hex format). Default: #10b981 (green). Examples: "#3b82f6" (blue), "#ef4444" (red), "#8b5cf6" (purple)
+Config.CopRequired = 0
+Config.SpawnCloseMin = 15.0   -- minimum distance for close-range attempt (would not bother editing)
+Config.SpawnCloseMax = 25.0   -- maximum distance for close-range attempt (would not bother editing)
+Config.SpawnFarMin   = 35.0   -- minimum distance for far-range fallback (would not bother editing)
+Config.SpawnFarMax   = 55.0   -- maximum distance for far-range fallback (would not bother editing)
+-- Max meters the road node can deviate from the ideal spawn point (avoids circling on MLO maps) 
+Config.SpawnWaypointMaxSnapOffLine = 25.0 -- (would not bother editing)
 
 --#Command
 Config.Commands = {
@@ -18,15 +25,13 @@ Config.Commands = {
     leaderboard = "trapleaderboard"  -- Command to open leaderboard
 }
 
---#UI Color Settings
-Config.UIcolor = "#3b82f6"  -- Main UI color (hex format). Default: #10b981 (green). Examples: "#3b82f6" (blue), "#ef4444" (red), "#8b5cf6" (purple)
 
 --#Leaderboard Settings
 Config.Leaderboard = {
-    title = "TOP DEALERS",  -- Leaderboard title text
-    subtitle = "Elite drug dealers ranking by total XP",  -- Subtitle text
+    title = "TOP HOODVILLE DEALERS",  -- Leaderboard title text
+    subtitle = "Top drug dealers ranking by total XP",  -- Subtitle text
     headerImage = "",  -- URL or path to header image (leave empty for trophy emoji, or use: "https://i.imgur.com/yourimage.png")
-    seasonText = "📅 CURRENT SEASON: Fall 2025"  -- Footer season text
+    seasonText = "📅 CURRENT SEASON: Summer 2026"  -- Footer season text
 }
 
 --#Item
@@ -61,8 +66,6 @@ Config.AutoSell = {
     delay = 1500,        -- Milliseconds the ped must be in range before the sale auto-triggers (min recommended: 1000)
 }
 
---#Required Sells
-Config.CopRequired = 0
 
 --#Blacklisted Jobs
 Config.BlacklistedJobs = {
@@ -152,10 +155,6 @@ Config.Ranks = {
     [4] = { points = 150000, percentmore = 10, label = 'OG', rewards = { type = 'car', reward = 'sultan2' } },
     [5] = { points = 200000, percentmore = 15, label = 'Kingpin', rewards = { type = 'car', reward = 'sultan2' } },
 }
-
-Config.NpcFightOnReject = true
-Config.RejectionChance = 40
-
 Config.Discord = {
     botName = 'Drug Leaderboard',
     botAvatar = 'https://r2.fivemanage.com/iXlkbXHVCnElhfGg0KkbF/mercury_pfp.gif', -- Bot avatar/profile picture
@@ -180,13 +179,3 @@ Config.PedList = {
     [9] = 'g_m_y_mexgoon_02',
     [10] = 'g_m_y_salvaboss_01',
 }
-
-
--- Customer spawn ranges (road-node snapped, close range first then fallback to far)
--- Close range gives better pathfinding on custom maps/MLOs
-Config.SpawnCloseMin = 15.0   -- minimum distance for close-range attempt
-Config.SpawnCloseMax = 25.0   -- maximum distance for close-range attempt
-Config.SpawnFarMin   = 35.0   -- minimum distance for far-range fallback
-Config.SpawnFarMax   = 55.0   -- maximum distance for far-range fallback
--- Max meters the road node can deviate from the ideal spawn point (avoids circling on MLO maps)
-Config.SpawnWaypointMaxSnapOffLine = 25.0
