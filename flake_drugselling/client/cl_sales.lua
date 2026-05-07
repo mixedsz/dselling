@@ -475,7 +475,7 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
                 end
 
                 -- Hit by player (2 strikes before spook)
-                if not spookedAlready and HasEntityBeenDamagedBy(buyerData.ped, PlayerPedId()) then
+                if not spookedAlready and HasEntityBeenDamagedByEntity(buyerData.ped, PlayerPedId(), true) then
                     ClearEntityLastDamageEntity(buyerData.ped)
                     pedHitCount = pedHitCount + 1
                     if pedHitCount >= 2 then
