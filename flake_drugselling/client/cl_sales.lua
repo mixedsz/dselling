@@ -515,8 +515,8 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
             -- Bail out if buyer was replaced or selling stopped
             if not buyerSpawned or currentBuyerPed ~= buyerData.ped then break end
 
-            -- Dead buyer
-            if IsPedDeadOrDying(buyerData.ped, true) then
+            -- Dead buyer (skip grace period — freshly spawned peds briefly read as dead)
+            if GetGameTimer() - spawnTime > 3000 and IsPedDeadOrDying(buyerData.ped, true) then
                 Config.Notify("The buyer was killed!", "error")
                 removeTargetFromEntity(buyerData.ped)
                 hardDeletePed(buyerData.ped)
