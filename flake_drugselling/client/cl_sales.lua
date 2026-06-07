@@ -352,8 +352,16 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
     ClearEntityLastDamageEntity(buyerData.ped)
     PlaceObjectOnGroundProperly(buyerData.ped)
 
-    local playerCoords = GetEntityCoords(playerPed)
-    TaskGoToCoordAnyMeans(buyerData.ped, playerCoords.x, playerCoords.y, playerCoords.z, 1.5, 0, 0, 786603, 3212836864)
+    -- In drive-thru, send buyer directly to the driver-side door position
+    local initTarget
+    if isDriveThru and IsPedInAnyVehicle(playerPed) then
+        local veh      = GetVehiclePedIsIn(playerPed, false)
+        local rightVec = GetEntityRightVector(veh)
+        initTarget     = GetEntityCoords(veh) - rightVec * 2.2
+    else
+        initTarget = GetEntityCoords(playerPed)
+    end
+    TaskGoToCoordAnyMeans(buyerData.ped, initTarget.x, initTarget.y, initTarget.z, 1.5, 0, 0, 786603, 3212836864)
 
     currentBuyerPed = buyerData.ped
 
@@ -373,10 +381,12 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
             if dist > 3.0 then
                 isWaiting = false
                 if GetGameTimer() - lastMoveUpdate > 2000 then
-                    -- In drive-thru, navigate toward the vehicle body rather than the ped origin
+                    -- In drive-thru, navigate to driver-side door rather than ped origin
                     local targetPos = pp
                     if isDriveThru and IsPedInAnyVehicle(PlayerPedId()) then
-                        targetPos = GetEntityCoords(GetVehiclePedIsIn(PlayerPedId(), false))
+                        local veh      = GetVehiclePedIsIn(PlayerPedId(), false)
+                        local rightVec = GetEntityRightVector(veh)
+                        targetPos      = GetEntityCoords(veh) - rightVec * 2.2
                     end
                     TaskGoToCoordAnyMeans(buyerData.ped, targetPos.x, targetPos.y, targetPos.z, 1.5, 0, 0, 786603, 3212836864)
                     lastMoveUpdate = GetGameTimer()
@@ -535,17 +545,14 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
                 end
                 local trigDist = Config.DriveThru and Config.DriveThru.triggerDist or 3.5
                 if distanceToBuyer < trigDist and not isSaleAnimating then
-                    Config.showTextUI('[DRIVE-THRU] - Customer approaching...')
                     if autoSellTimer == 0 then
                         autoSellTimer = GetGameTimer()
                     elseif GetGameTimer() - autoSellTimer >= (Config.DriveThru and Config.DriveThru.autoDelay or 1500) then
                         shouldInteract = true
                         autoSellTimer  = 0
-                        Config.hideTextUI()
                     end
                 else
                     autoSellTimer = 0
-                    Config.hideTextUI()
                 end
             elseif Config.AutoSell and Config.AutoSell.enabled then
                 if distanceToBuyer < 2.5 and not isSaleAnimating then
@@ -872,8 +879,24 @@ end
 function sell_ped_drivethru(buyerPed, drugItem, drugCount)
     isSaleAnimating = true
     local playerPed = PlayerPedId()
+    local vehicle   = GetVehiclePedIsIn(playerPed, false)
 
-    TaskTurnPedToFaceEntity(buyerPed, playerPed, -1)
+    -- Hard stop buyer movement so animation plays cleanly at the door
+    ClearPedTasks(buyerPed)
+    SetBlockingOfNonTemporaryEvents(buyerPed, true)
+
+    -- Snap buyer to driver-side door position and face the player
+    if DoesEntityExist(vehicle) then
+        local rightVec  = GetEntityRightVector(vehicle)
+        local doorPos   = GetEntityCoords(vehicle) - rightVec * 2.2
+        -- Slide ped to door position (tiny move so they don't warp)
+        TaskGoToCoordAnyMeans(buyerPed, doorPos.x, doorPos.y, doorPos.z, 1.5, 0, 0, 786603, 3212836864)
+        Wait(600)
+        ClearPedTasks(buyerPed)
+    end
+
+    TaskTurnPedToFaceEntity(buyerPed, playerPed, 1200)
+    Wait(900)  -- let turn complete before animation starts
 
     RequestAnimDict("mp_common")
     while not HasAnimDictLoaded("mp_common") do Wait(0) end
@@ -887,15 +910,19 @@ function sell_ped_drivethru(buyerPed, drugItem, drugCount)
     local drugProp = CreateObject(propModel, 0, 0, 0, true, true, true)
     AttachEntityToEntity(drugProp, playerPed, GetPedBoneIndex(playerPed, 28422), 0.05, 0.01, -0.05, 0.0, 180.0, 0.0, true, true, false, true, 1, true)
 
-    -- Upper-body only (flag 49 = loop + secondary + allow corrections) so it plays while seated
-    TaskPlayAnim(playerPed, "mp_common", "givetake1_a", 8.0, -8.0, 2000, 49, 0, false, false, false)
-    Wait(800)
+    -- Flag 49 = loop (1) + secondary upper-body (16) + allow corrections (32): plays while seated
+    TaskPlayAnim(playerPed, "mp_common", "givetake1_a", 8.0, -8.0, 2500, 49, 0, false, false, false)
+    Wait(1000)
 
+    -- Transfer prop to buyer hand
     AttachEntityToEntity(drugProp, buyerPed, GetPedBoneIndex(buyerPed, 60309), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, true, true, false, true, 1, true)
-    TaskPlayAnim(buyerPed, "mp_common", "givetake1_a", 8.0, -8.0, 1500, 0, 0, false, false, false)
-    Wait(700)
+    TaskPlayAnim(buyerPed, "mp_common", "givetake1_a", 8.0, -8.0, 2000, 0, 0, false, false, false)
+    Wait(1200)
 
-    Citizen.SetTimeout(1500, function() if DoesEntityExist(drugProp) then DeleteEntity(drugProp) end end)
+    ClearPedTasks(playerPed)
+    ClearPedTasks(buyerPed)
+
+    Citizen.SetTimeout(1200, function() if DoesEntityExist(drugProp) then DeleteEntity(drugProp) end end)
 
     TriggerServerEvent("flake_drugselling:server:sellDrug", drugItem, drugCount)
 
@@ -1060,11 +1087,11 @@ exports('usePhone', function(data, slot)
         -- ── Area heat readout ────────────────────────────────────
         local heatIcons = { 'snowflake', 'temperature-low', 'fire', 'fire-flame-curved', 'fire-flame-simple' }
         local heatDescs = {
-            'Area is cold — minimal police attention.',
-            'Warming up — slight increase in patrols.',
-            'Hot zone — elevated dispatch chance.',
-            'Scorching — police are actively watching.',
-            'INFERNO — maximum heat, expect a response.',
+            'Cold — no extra heat, safe to operate.',
+            'Warm — slight uptick in dispatch chance.',
+            'Hot — elevated dispatch & rejection chance.',
+            'Blazing — heavy police response likely. Consider moving.',
+            'Burned — maximum heat. Relocate immediately.',
         }
         options[#options + 1] = {
             title       = string.format('Area Heat: %s  [%d/5]', heatLabel, heatTier),

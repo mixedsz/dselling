@@ -228,7 +228,9 @@ $(function() {
                 $('#heat-indicator').css('display', 'flex');
                 $('#heat-bar-fill').css({ 'width': data.heat + '%', 'background-color': color });
                 $('#heat-icon').css('color', color);
-                $('#heat-tier-label').text(data.label || 'COLD').css('color', color);
+                const bonus = data.dispatchAdd || 0;
+                const labelText = bonus > 0 ? (data.label || 'COLD') + '  +' + bonus + '%' : (data.label || 'COLD');
+                $('#heat-tier-label').text(labelText).css('color', color);
             } else {
                 $('#heat-indicator').css('display', 'none');
             }

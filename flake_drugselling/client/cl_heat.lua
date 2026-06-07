@@ -8,7 +8,7 @@
 local heatLevel    = 0
 local lastSaleTime = 0
 
-local heatLabels = { 'COLD', 'WARM', 'HOT', 'SCORCHING', 'INFERNO' }
+local heatLabels = { 'COLD', 'WARM', 'HOT', 'BLAZING', 'BURNED' }
 
 function GetHeatLevel()
     return heatLevel
@@ -57,10 +57,11 @@ end
 
 function UpdateHeatUI()
     SendNUIMessage({
-        action = 'updateHeat',
-        heat   = heatLevel,
-        tier   = GetHeatTier(),
-        label  = GetHeatLabel(),
+        action      = 'updateHeat',
+        heat        = heatLevel,
+        tier        = GetHeatTier(),
+        label       = GetHeatLabel(),
+        dispatchAdd = GetHeatDispatchBonus(),
     })
 end
 
