@@ -356,7 +356,8 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
     local initTarget
     if isDriveThru and IsPedInAnyVehicle(playerPed) then
         local veh      = GetVehiclePedIsIn(playerPed, false)
-        local rightVec = GetEntityRightVector(veh)
+        local fwd      = GetEntityForwardVector(veh)
+        local rightVec = vector3(fwd.y, -fwd.x, 0.0)
         initTarget     = GetEntityCoords(veh) - rightVec * 2.2
     else
         initTarget = GetEntityCoords(playerPed)
@@ -385,7 +386,8 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
                     local targetPos = pp
                     if isDriveThru and IsPedInAnyVehicle(PlayerPedId()) then
                         local veh      = GetVehiclePedIsIn(PlayerPedId(), false)
-                        local rightVec = GetEntityRightVector(veh)
+                        local fwd      = GetEntityForwardVector(veh)
+                        local rightVec = vector3(fwd.y, -fwd.x, 0.0)
                         targetPos      = GetEntityCoords(veh) - rightVec * 2.2
                     end
                     TaskGoToCoordAnyMeans(buyerData.ped, targetPos.x, targetPos.y, targetPos.z, 1.5, 0, 0, 786603, 3212836864)
@@ -887,7 +889,8 @@ function sell_ped_drivethru(buyerPed, drugItem, drugCount)
 
     -- Snap buyer to driver-side door position and face the player
     if DoesEntityExist(vehicle) then
-        local rightVec  = GetEntityRightVector(vehicle)
+        local fwd       = GetEntityForwardVector(vehicle)
+        local rightVec  = vector3(fwd.y, -fwd.x, 0.0)
         local doorPos   = GetEntityCoords(vehicle) - rightVec * 2.2
         -- Slide ped to door position (tiny move so they don't warp)
         TaskGoToCoordAnyMeans(buyerPed, doorPos.x, doorPos.y, doorPos.z, 1.5, 0, 0, 786603, 3212836864)
