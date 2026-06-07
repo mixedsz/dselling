@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trap Rank Progress</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/leaderboard.css">
+    <link rel="stylesheet" href="css/config-ui.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="nui://game/ui/jquery.js" type="text/javascript"></script>
+    <script src="js/color-manager.js"></script>
+    <script src="js/color-handler.js"></script>
+    <script src="js/notif-styles.js"></script>
+</head>
+<body>
+    <!-- Level Up Notification Card -->
+    <div id="level-up-notification">
+        <div class="level-header">
+            LEVEL <span id="level-number">2</span>
+        </div>
+        <div class="notification-content">
+            <div class="reward-container">
+                <div id="reward-image" class="car-silhouette"></div>
+            </div>
+            <div class="level-content">
+                <span id="unlock-type">New Car</span>
+                <span id="unlock-text">Unlocked</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Notification Toast -->
+    <div id="custom-notif">
+        <span id="custom-notif-icon"><i class="fa-solid fa-circle-check"></i></span>
+        <span id="custom-notif-msg">Notification</span>
+    </div>
+
+    <!-- Rank Progress Bar -->
+    <div id="rank-progress-container">
+        <div id="rank-name">Trapper</div>
+        <div id="rank-bar-container">
+            <div id="current-rank">2</div>
+            <div id="rank-bar">
+                <!-- Dots will be dynamically added here by JavaScript -->
+            </div>
+            <div id="next-rank">3</div>
+        </div>
+        <div class="progress-percentage">
+            <span id="progress-text">0%</span>
+        </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboard-container">
+        <div class="leaderboard-card">
+            <!-- Header -->
+            <div class="leaderboard-header">
+                <!-- Image wrapper: shown when headerImage is set, hides trophy -->
+                <div class="header-image-wrapper" id="header-image-wrapper">
+                    <img id="leaderboard-header-image" class="header-image" src="" alt="">
+                </div>
+                <!-- Trophy: shown when no image -->
+                <div class="header-trophy" id="header-trophy">🏆</div>
+                <div class="header-title" id="header-title">TOP DEALERS</div>
+                <div class="header-subtitle" id="header-subtitle">Elite drug dealers ranking by total XP</div>
+            </div>
+
+            <!-- Column Headers -->
+            <div class="leaderboard-columns">
+                <div class="col-rank"># RANK</div>
+                <div class="col-dealer">👤 DEALER</div>
+                <div class="col-title">🏆 TITLE</div>
+                <div class="col-xp">⭐ XP</div>
+            </div>
+
+            <!-- Leaderboard Entries -->
+            <div class="leaderboard-list" id="leaderboard-list">
+                <!-- Entries will be dynamically inserted here -->
+            </div>
+
+            <!-- Footer -->
+            <div class="leaderboard-footer">
+                <span id="season-text">📅 CURRENT SEASON: Summer 2026</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config UI Overlay -->
+    <div id="config-ui-overlay">
+        <div id="config-ui-panel">
+            <div id="config-ui-header">
+                <div class="cui-header-left">
+                    <span class="cui-logo"><i class="fa-solid fa-gears"></i></span>
+                    <div>
+                        <div class="cui-title">TRAP ADMIN</div>
+                        <div class="cui-subtitle">Server Management</div>
+                    </div>
+                </div>
+                <button id="config-ui-close" onclick="closeCUI()">✕</button>
+            </div>
+            <div id="config-ui-body">
+                <div id="cui-sidebar">
+                    <button class="cui-tab active" data-tab="drugs" onclick="switchCUITab('drugs',this)">
+                        <i class="fa-solid fa-pills cui-tab-icon"></i><span>Drugs</span>
+                    </button>
+                    <button class="cui-tab" data-tab="ranks" onclick="switchCUITab('ranks',this)">
+                        <i class="fa-solid fa-trophy cui-tab-icon"></i><span>Ranks</span>
+                    </button>
+                    <button class="cui-tab" data-tab="peds" onclick="switchCUITab('peds',this)">
+                        <i class="fa-solid fa-person cui-tab-icon"></i><span>Peds</span>
+                    </button>
+                    <button class="cui-tab" data-tab="settings" onclick="switchCUITab('settings',this)">
+                        <i class="fa-solid fa-sliders cui-tab-icon"></i><span>Settings</span>
+                    </button>
+                    <button class="cui-tab" data-tab="notifications" onclick="switchCUITab('notifications',this)">
+                        <i class="fa-solid fa-bell cui-tab-icon"></i><span>Notifications</span>
+                    </button>
+                </div>
+                <div id="cui-content">
+                    <!-- Drugs Tab -->
+                    <div class="cui-tab-pane active" id="pane-drugs">
+                        <div class="cui-pane-header">
+                            <div>
+                                <div class="cui-pane-title">Drug Inventory</div>
+                                <div class="cui-pane-desc">Add, edit or remove drugs players can sell</div>
+                            </div>
+                            <button class="cui-btn-accent" onclick="openDrugModal(null)">+ Add Drug</button>
+                        </div>
+                        <div class="cui-table-wrap">
+                            <table class="cui-table" id="drugs-table">
+                                <thead><tr>
+                                    <th>Item Name</th><th>Label</th><th>Price Range</th>
+                                    <th>Qty Range</th><th>XP Reward</th><th>Actions</th>
+                                </tr></thead>
+                                <tbody id="drugs-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="cui-pane-footer">
+                            <button class="cui-btn-save" onclick="saveDrugs()">Save Drugs</button>
+                        </div>
+                    </div>
+
+                    <!-- Ranks Tab -->
+                    <div class="cui-tab-pane" id="pane-ranks">
+                        <div class="cui-pane-header">
+                            <div>
+                                <div class="cui-pane-title">Rank System</div>
+                                <div class="cui-pane-desc">Configure all 28+ rank tiers, XP gates, bonuses and rewards</div>
+                            </div>
+                            <button class="cui-btn-accent" onclick="addRank()">+ Add Rank</button>
+                        </div>
+                        <div class="cui-table-wrap">
+                            <table class="cui-table" id="ranks-table">
+                                <thead><tr>
+                                    <th>#</th><th>Label</th><th>XP Required</th><th>Bonus %</th>
+                                    <th>Reward Type</th><th>Reward</th><th>Actions</th>
+                                </tr></thead>
+                                <tbody id="ranks-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="cui-pane-footer">
+                            <button class="cui-btn-save" onclick="saveRanks()">Save Ranks</button>
+                        </div>
+                    </div>
+
+                    <!-- Peds Tab -->
+                    <div class="cui-tab-pane" id="pane-peds">
+                        <div class="cui-pane-header">
+                            <div>
+                                <div class="cui-pane-title">Buyer Peds</div>
+                                <div class="cui-pane-desc">GTA V ped model names used as random NPC buyers</div>
+                            </div>
+                        </div>
+                        <div class="cui-ped-add-row">
+                            <input type="text" id="new-ped-input" class="cui-input" placeholder="e.g. g_m_y_ballaeast_01">
+                            <button class="cui-btn-accent" onclick="addPed()">+ Add Ped</button>
+                        </div>
+                        <div id="peds-grid"></div>
+                        <div class="cui-pane-footer">
+                            <button class="cui-btn-save" onclick="savePeds()">Save Peds</button>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div class="cui-tab-pane" id="pane-settings">
+                        <div class="cui-pane-header">
+                            <div>
+                                <div class="cui-pane-title">General Settings</div>
+                                <div class="cui-pane-desc">Tweak all gameplay numbers, distances, leaderboard text and bonus areas</div>
+                            </div>
+                        </div>
+                        <div class="cui-settings-scroll">
+                            <div class="cui-settings-grid">
+                                <div class="cui-card">
+                                    <div class="cui-card-title">Appearance</div>
+                                    <label class="cui-label">UI Accent Color
+                                        <input type="color" id="s-uicolor" class="cui-color-input">
+                                    </label>
+                                </div>
+                                <div class="cui-card">
+                                    <div class="cui-card-title">Sale Rules</div>
+                                    <label class="cui-label">Cops Required (0 = any)
+                                        <input type="number" id="s-coprequired" class="cui-input-sm" min="0">
+                                    </label>
+                                    <label class="cui-label">Rejection Chance %
+                                        <input type="number" id="s-rejection" class="cui-input-sm" min="0" max="100">
+                                    </label>
+                                    <label class="cui-label">Max Move Distance
+                                        <input type="number" id="s-maxdist" class="cui-input-sm" min="1">
+                                    </label>
+                                </div>
+                                <div class="cui-card">
+                                    <div class="cui-card-title">Robbery</div>
+                                    <label class="cui-label">Base Chance %
+                                        <input type="number" id="s-rob-base" class="cui-input-sm" min="0" max="100">
+                                    </label>
+                                    <label class="cui-label">AutoSell Bonus Chance %
+                                        <input type="number" id="s-rob-autosell" class="cui-input-sm" min="0" max="100">
+                                    </label>
+                                </div>
+                                <div class="cui-card">
+                                    <div class="cui-card-title">Auto Sell</div>
+                                    <label class="cui-label cui-toggle-label">
+                                        <span>Enabled</span>
+                                        <label class="cui-toggle"><input type="checkbox" id="s-autosell-enabled"><span class="cui-toggle-slider"></span></label>
+                                    </label>
+                                    <label class="cui-label">Interaction Delay (ms)
+                                        <input type="number" id="s-autosell-delay" class="cui-input-sm" min="0">
+                                    </label>
+                                </div>
+                                <div class="cui-card">
+                                    <div class="cui-card-title">Skill Check</div>
+                                    <label class="cui-label cui-toggle-label">
+                                        <span>Enabled</span>
+                                        <label class="cui-toggle"><input type="checkbox" id="s-skill-enabled"><span class="cui-toggle-slider"></span></label>
+                                    </label>
+                                    <label class="cui-label">Trigger Chance %
+                                        <input type="number" id="s-skill-chance" class="cui-input-sm" min="0" max="100">
+                                    </label>
+                                </div>
+                                <div class="cui-card">
+                                    <div class="cui-card-title">Spawn Distances</div>
+                                    <div class="cui-two-col">
+                                        <label class="cui-label">Close Min<input type="number" id="s-close-min" class="cui-input-sm" step="0.5"></label>
+                                        <label class="cui-label">Close Max<input type="number" id="s-close-max" class="cui-input-sm" step="0.5"></label>
+                                        <label class="cui-label">Far Min<input type="number" id="s-far-min" class="cui-input-sm" step="0.5"></label>
+                                        <label class="cui-label">Far Max<input type="number" id="s-far-max" class="cui-input-sm" step="0.5"></label>
+                                    </div>
+                                </div>
+                                <div class="cui-card">
+                                    <div class="cui-card-title">Customer Snitch</div>
+                                    <p class="cui-hint" style="margin:0">Chance a rejecting NPC calls the police on the seller</p>
+                                    <label class="cui-label cui-toggle-label">
+                                        <span>Enabled</span>
+                                        <label class="cui-toggle"><input type="checkbox" id="s-snitch-enabled"><span class="cui-toggle-slider"></span></label>
+                                    </label>
+                                    <label class="cui-label">Snitch Chance %
+                                        <input type="number" id="s-snitch-chance" class="cui-input-sm" min="0" max="100">
+                                    </label>
+                                </div>
+                                <div class="cui-card cui-card-full">
+                                    <div class="cui-card-title">Blacklisted Jobs</div>
+                                    <p class="cui-hint" style="margin:0 0 8px">Players with these jobs cannot sell drugs</p>
+                                    <div style="display:flex;gap:8px;margin-bottom:10px">
+                                        <input type="text" id="new-job-input" class="cui-input" placeholder="e.g. police">
+                                        <button class="cui-btn-accent" style="white-space:nowrap" onclick="addBlacklistedJob()">+ Add Job</button>
+                                    </div>
+                                    <div id="blacklisted-jobs-grid" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                                </div>
+                                <div class="cui-card cui-card-wide">
+                                    <div class="cui-card-title">Leaderboard Text</div>
+                                    <label class="cui-label">Title<input type="text" id="s-lb-title" class="cui-input"></label>
+                                    <label class="cui-label">Subtitle<input type="text" id="s-lb-subtitle" class="cui-input"></label>
+                                    <label class="cui-label">Season Text<input type="text" id="s-lb-season" class="cui-input"></label>
+                                </div>
+                                <div class="cui-card cui-card-full">
+                                    <div class="cui-card-title">Bonus Sale Areas <button class="cui-btn-xs" onclick="addBonusArea()">+ Add</button></div>
+                                    <div id="bonus-areas-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cui-pane-footer">
+                            <button class="cui-btn-save" onclick="saveSettings()">Save Settings</button>
+                        </div>
+                    </div>
+
+                    <!-- Notifications Tab -->
+                    <div class="cui-tab-pane" id="pane-notifications">
+                        <div class="cui-pane-header">
+                            <div>
+                                <div class="cui-pane-title">Rank-Up Notifications</div>
+                                <div class="cui-pane-desc">Pick a card style and an optional extra text alert</div>
+                            </div>
+                        </div>
+                        <div class="cui-notif-layout">
+
+                            <!-- Visual Card Style Picker -->
+                            <div class="cui-card cui-card-full">
+                                <div class="cui-card-title">Card Visual Style</div>
+                                <p class="cui-hint">This changes how the level-up card looks in-game. Click a style to preview it.</p>
+                                <div class="cui-card-style-grid" id="card-style-grid">
+
+                                    <div class="cui-card-style" data-style="classic" onclick="selectCardStyle('classic')">
+                                        <div class="ccs-preview ccs-classic">
+                                            <div class="ccs-header">LEVEL 7</div>
+                                            <div class="ccs-body">
+                                                <div class="ccs-img"></div>
+                                                <div class="ccs-text"><span class="ccs-sub">New Car</span><span class="ccs-title">Unlocked</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="ccs-label">Classic</div>
+                                        <div class="ccs-desc">Dark card with gradient header</div>
+                                    </div>
+
+                                    <div class="cui-card-style" data-style="glass" onclick="selectCardStyle('glass')">
+                                        <div class="ccs-preview ccs-glass">
+                                            <div class="ccs-header">LEVEL 7</div>
+                                            <div class="ccs-body">
+                                                <div class="ccs-img"></div>
+                                                <div class="ccs-text"><span class="ccs-sub">New Car</span><span class="ccs-title">Unlocked</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="ccs-label">Glass</div>
+                                        <div class="ccs-desc">Frosted blur, transparent</div>
+                                    </div>
+
+                                    <div class="cui-card-style" data-style="minimal" onclick="selectCardStyle('minimal')">
+                                        <div class="ccs-preview ccs-minimal">
+                                            <div class="ccs-header">LEVEL 7</div>
+                                            <div class="ccs-body ccs-body-min">
+                                                <div class="ccs-text"><span class="ccs-sub">New Car</span><span class="ccs-title">Unlocked</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="ccs-label">Minimal</div>
+                                        <div class="ccs-desc">No background, text + glow only</div>
+                                    </div>
+
+                                    <div class="cui-card-style" data-style="glow" onclick="selectCardStyle('glow')">
+                                        <div class="ccs-preview ccs-glow">
+                                            <div class="ccs-header">LEVEL 7</div>
+                                            <div class="ccs-body">
+                                                <div class="ccs-img"></div>
+                                                <div class="ccs-text"><span class="ccs-sub">New Car</span><span class="ccs-title">Unlocked</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="ccs-label">Dark Glow</div>
+                                        <div class="ccs-desc">Pure black with neon glow</div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <!-- Extra Text Alert System -->
+                            <div class="cui-card">
+                                <div class="cui-card-title">Extra Text Alert</div>
+                                <p class="cui-hint">Optional second notification alongside the card</p>
+                                <div class="cui-notif-options" id="notif-options">
+                                    <div class="cui-notif-option" data-value="none" onclick="selectNotifStyle('none')">
+                                        <span class="cui-notif-icon"><i class="fa-solid fa-ban"></i></span>
+                                        <div><div class="cui-notif-name">None</div><div class="cui-notif-desc">Card only, no extra alert</div></div>
+                                    </div>
+                                    <div class="cui-notif-option" data-value="custom" onclick="selectNotifStyle('custom')">
+                                        <span class="cui-notif-icon"><i class="fa-solid fa-star"></i></span>
+                                        <div><div class="cui-notif-name">Custom</div><div class="cui-notif-desc">Built-in NUI top-screen toast</div></div>
+                                    </div>
+                                    <div class="cui-notif-option" data-value="ox_lib" onclick="selectNotifStyle('ox_lib')">
+                                        <span class="cui-notif-icon"><i class="fa-solid fa-layer-group"></i></span>
+                                        <div><div class="cui-notif-name">OX Lib</div><div class="cui-notif-desc">lib.notify toast</div></div>
+                                    </div>
+                                    <div class="cui-notif-option" data-value="esx" onclick="selectNotifStyle('esx')">
+                                        <span class="cui-notif-icon"><i class="fa-solid fa-code"></i></span>
+                                        <div><div class="cui-notif-name">ESX</div><div class="cui-notif-desc">ESX.ShowNotification</div></div>
+                                    </div>
+                                    <div class="cui-notif-option" data-value="qb" onclick="selectNotifStyle('qb')">
+                                        <span class="cui-notif-icon"><i class="fa-solid fa-cube"></i></span>
+                                        <div><div class="cui-notif-name">QBCore</div><div class="cui-notif-desc">QBCore.Functions.Notify</div></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Message Templates -->
+                            <div class="cui-card">
+                                <div class="cui-card-title">Message Templates</div>
+                                <p class="cui-hint">Variables: <code>{rank}</code> <code>{label}</code> <code>{reward}</code> <code>{item}</code> <code>{amount}</code></p>
+                                <label class="cui-label">Rank Up
+                                    <input type="text" id="notif-rankup" class="cui-input" placeholder="RANK UP! You are now a {label}">
+                                </label>
+                                <label class="cui-label">Car Reward
+                                    <input type="text" id="notif-car" class="cui-input" placeholder="New car: {reward}">
+                                </label>
+                                <label class="cui-label">Item Reward
+                                    <input type="text" id="notif-item" class="cui-input" placeholder="{amount}x {item} earned">
+                                </label>
+                            </div>
+
+                        </div>
+                        <div class="cui-pane-footer">
+                            <button class="cui-btn-save" onclick="saveNotifications()">Save Notifications</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drug Modal -->
+        <div id="drug-modal" class="cui-modal">
+            <div class="cui-modal-card">
+                <div class="cui-modal-header">
+                    <span id="drug-modal-title">Add Drug</span>
+                    <button onclick="closeDrugModal()">✕</button>
+                </div>
+                <div class="cui-modal-body">
+                    <input type="hidden" id="drug-modal-editing-id">
+                    <label class="cui-label">Item Name (inventory key)
+                        <div class="cui-item-combo" id="dm-id-combo">
+                            <div class="cui-item-combo-row">
+                                <input type="text" id="dm-id" class="cui-input" placeholder="crack1g"
+                                    oninput="filterItemDrop(this.value)"
+                                    onfocus="openItemDrop()"
+                                    autocomplete="off">
+                                <button type="button" id="dm-id-arrow" class="cui-item-combo-arrow" onclick="toggleItemDrop()">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div id="dm-id-drop" class="cui-item-drop"></div>
+                        </div>
+                    </label>
+                    <label class="cui-label">Display Label
+                        <input type="text" id="dm-label" class="cui-input" placeholder="Coke pooch">
+                    </label>
+                    <div class="cui-two-col">
+                        <label class="cui-label">Min Price ($)<input type="number" id="dm-price-min" class="cui-input" min="0"></label>
+                        <label class="cui-label">Max Price ($)<input type="number" id="dm-price-max" class="cui-input" min="0"></label>
+                        <label class="cui-label">Min Qty<input type="number" id="dm-qty-min" class="cui-input" min="1"></label>
+                        <label class="cui-label">Max Qty<input type="number" id="dm-qty-max" class="cui-input" min="1"></label>
+                        <label class="cui-label">XP Reward<input type="number" id="dm-points" class="cui-input" min="0"></label>
+                        <label class="cui-label">Reject XP<input type="number" id="dm-reject" class="cui-input" min="0"></label>
+                    </div>
+                </div>
+                <div class="cui-modal-footer">
+                    <button class="cui-btn-ghost" onclick="closeDrugModal()">Cancel</button>
+                    <button class="cui-btn-save" onclick="confirmDrug()">Save Drug</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rank Modal -->
+        <div id="rank-modal" class="cui-modal">
+            <div class="cui-modal-card">
+                <div class="cui-modal-header">
+                    <span id="rank-modal-title">Edit Rank</span>
+                    <button onclick="closeRankModal()">✕</button>
+                </div>
+                <div class="cui-modal-body">
+                    <input type="hidden" id="rank-modal-idx">
+                    <label class="cui-label">Rank Label
+                        <input type="text" id="rm-label" class="cui-input" placeholder="Corner Boy">
+                    </label>
+                    <div class="cui-two-col">
+                        <label class="cui-label">XP Required<input type="number" id="rm-points" class="cui-input" min="0"></label>
+                        <label class="cui-label">Bonus %<input type="number" id="rm-bonus" class="cui-input" min="0" max="100"></label>
+                    </div>
+                    <label class="cui-label">Reward Type
+                        <select id="rm-reward-type" class="cui-input" onchange="toggleRewardFields()">
+                            <option value="none">No Reward</option>
+                            <option value="car">Car (vehicle)</option>
+                            <option value="item">Item</option>
+                        </select>
+                    </label>
+                    <div id="rm-car-fields" style="display:none">
+                        <label class="cui-label">Vehicle Model
+                            <div class="cui-item-combo" id="rm-vehicle-combo">
+                                <div class="cui-item-combo-row">
+                                    <input type="text" id="rm-vehicle" class="cui-input" placeholder="sultan"
+                                        oninput="filterVehicleDrop(this.value)"
+                                        onfocus="openVehicleDrop()"
+                                        autocomplete="off">
+                                    <button type="button" class="cui-item-combo-arrow" onclick="toggleVehicleDrop()">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </button>
+                                </div>
+                                <div id="rm-vehicle-drop" class="cui-item-drop"></div>
+                            </div>
+                        </label>
+                    </div>
+                    <div id="rm-item-fields" style="display:none">
+                        <div class="cui-two-col">
+                            <label class="cui-label">Item Name
+                                <div class="cui-item-combo" id="rm-item-combo">
+                                    <div class="cui-item-combo-row">
+                                        <input type="text" id="rm-item" class="cui-input" placeholder="armour"
+                                            oninput="filterRankItemDrop(this.value)"
+                                            onfocus="openRankItemDrop()"
+                                            autocomplete="off">
+                                        <button type="button" class="cui-item-combo-arrow" onclick="toggleRankItemDrop()">
+                                            <i class="fa-solid fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <div id="rm-item-drop" class="cui-item-drop"></div>
+                                </div>
+                            </label>
+                            <label class="cui-label">Amount<input type="number" id="rm-amount" class="cui-input" min="1"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="cui-modal-footer">
+                    <button class="cui-btn-ghost" onclick="closeRankModal()">Cancel</button>
+                    <button class="cui-btn-save" onclick="confirmRank()">Save Rank</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Modal -->
+        <div id="cui-confirm-modal" class="cui-modal">
+            <div class="cui-modal-card" style="width:360px">
+                <div class="cui-modal-header">
+                    <span><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;font-size:15px"></i><span id="cui-confirm-title">Confirm</span></span>
+                    <button onclick="cuiConfirmClose()">✕</button>
+                </div>
+                <div class="cui-modal-body">
+                    <p id="cui-confirm-msg" style="font-size:14px;color:#bbb;margin:4px 0 0;line-height:1.6"></p>
+                </div>
+                <div class="cui-modal-footer">
+                    <button class="cui-btn-ghost" onclick="cuiConfirmClose()">Cancel</button>
+                    <button class="cui-btn-danger" id="cui-confirm-ok" onclick="cuiConfirmOk()">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="cui-toast"></div>
+    </div>
+
+    <script src="js/script.js"></script>
+    <script src="js/leaderboard.js"></script>
+    <script src="js/config-ui.js"></script>
+</body>
+</html>
