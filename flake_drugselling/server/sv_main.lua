@@ -157,7 +157,7 @@ lib.callback.register('flake_drugselling:hasPhoneItem', function(source)
     return true -- If phone check is disabled, always return true
 end)
 
--- Callback: Get all available drugs
+-- Callback: Get all available drugs (returns first match for auto-pick)
 lib.callback.register('flake_drugselling:getallavailableDrugs', function(source)
     for drugName, drugConfig in pairs(Config.SellList) do
         local count = getItemCount(source, drugName)
@@ -166,6 +166,31 @@ lib.callback.register('flake_drugselling:getallavailableDrugs', function(source)
         end
     end
     return nil, 0
+end)
+
+-- Callback: Get specific drug count by item name
+lib.callback.register('flake_drugselling:getDrugCount', function(source, drugName)
+    local count = getItemCount(source, drugName)
+    return count
+end)
+
+-- Callback: Get all drugs player currently has with full metadata (for phone menu)
+lib.callback.register('flake_drugselling:getAllDrugs', function(source)
+    local drugs = {}
+    for drugName, drugConfig in pairs(Config.SellList) do
+        local count = getItemCount(source, drugName)
+        if count > 0 then
+            table.insert(drugs, {
+                item      = drugName,
+                count     = count,
+                label     = drugConfig.label,
+                priceMin  = drugConfig.price.min,
+                priceMax  = drugConfig.price.max,
+                addpoints = drugConfig.addpoints,
+            })
+        end
+    end
+    return drugs
 end)
 
 -- Callback: Get player level

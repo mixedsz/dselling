@@ -16,6 +16,8 @@ local currentBuyerPed = nil
 local buyerSpawned = false
 local interactedPeds = {}
 local isSaleAnimating = false
+local isDriveThru = false      -- true when player is selling from inside a vehicle
+local selectedDrug = nil       -- set by phone menu drug selection; nil = auto-pick
 
 -- Robbery state
 local robberyPed = nil           -- the ped currently fleeing with stolen drugs
@@ -54,11 +56,11 @@ local function hardDeletePed(ped)
     DeleteEntity(ped)
 end
 
--- Walk ped away then hard-delete; no lingering
+-- Walk ped away then hard-delete.
+-- Despawn delay is driven by the active PedBehavior profile.
 local function despawnBuyerPed(ped)
     if not ped or not DoesEntityExist(ped) then return end
 
-    -- Clear any current tasks and remove from mission entity pool immediately
     ClearPedTasks(ped)
     SetBlockingOfNonTemporaryEvents(ped, true)
     SetPedFleeAttributes(ped, 0, false)
@@ -77,8 +79,12 @@ local function despawnBuyerPed(ped)
     local awayCoords = playerCoords + dir * (30.0 / dist)
     TaskGoStraightToCoord(ped, awayCoords.x, awayCoords.y, awayCoords.z, 1.5, 8000, 0.5, 0.0)
 
-    -- Hard delete after 6 seconds regardless of whether the walk finished
-    Citizen.SetTimeout(6000, function()
+    -- Despawn time from ped behavior profile (default 6000 ms)
+    local profileName = Config.PedBehavior or 'casual'
+    local profile     = Config.PedBehaviorProfiles and Config.PedBehaviorProfiles[profileName] or {}
+    local deleteDelay = profile.despawnTime or 6000
+
+    Citizen.SetTimeout(deleteDelay, function()
         hardDeletePed(ped)
         interactedPeds[ped] = nil
     end)
@@ -296,10 +302,17 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
 
     local playerPed = PlayerPedId()
 
+    -- Drive-thru: allow in-vehicle selling when Config.DriveThru.enabled is true
     if IsPedInAnyVehicle(playerPed) then
-        Config.Notify(Config.Notifications.cannotSellFromVehicle, "error")
-        resetSellState()
-        return
+        if Config.DriveThru and Config.DriveThru.enabled then
+            isDriveThru = true
+        else
+            Config.Notify(Config.Notifications.cannotSellFromVehicle, "error")
+            resetSellState()
+            return
+        end
+    else
+        isDriveThru = false
     end
 
     local drugItem, drugCount = getDrugs()
@@ -339,8 +352,17 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
     ClearEntityLastDamageEntity(buyerData.ped)
     PlaceObjectOnGroundProperly(buyerData.ped)
 
-    local playerCoords = GetEntityCoords(playerPed)
-    TaskGoToCoordAnyMeans(buyerData.ped, playerCoords.x, playerCoords.y, playerCoords.z, 1.5, 0, 0, 786603, 3212836864)
+    -- In drive-thru, send buyer directly to the driver-side door position
+    local initTarget
+    if isDriveThru and IsPedInAnyVehicle(playerPed) then
+        local veh      = GetVehiclePedIsIn(playerPed, false)
+        local fwd      = GetEntityForwardVector(veh)
+        local rightVec = vector3(fwd.y, -fwd.x, 0.0)
+        initTarget     = GetEntityCoords(veh) - rightVec * 2.2
+    else
+        initTarget = GetEntityCoords(playerPed)
+    end
+    TaskGoToCoordAnyMeans(buyerData.ped, initTarget.x, initTarget.y, initTarget.z, 1.5, 0, 0, 786603, 3212836864)
 
     currentBuyerPed = buyerData.ped
 
@@ -360,7 +382,15 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
             if dist > 3.0 then
                 isWaiting = false
                 if GetGameTimer() - lastMoveUpdate > 2000 then
-                    TaskGoToCoordAnyMeans(buyerData.ped, pp.x, pp.y, pp.z, 1.5, 0, 0, 786603, 3212836864)
+                    -- In drive-thru, navigate to driver-side door rather than ped origin
+                    local targetPos = pp
+                    if isDriveThru and IsPedInAnyVehicle(PlayerPedId()) then
+                        local veh      = GetVehiclePedIsIn(PlayerPedId(), false)
+                        local fwd      = GetEntityForwardVector(veh)
+                        local rightVec = vector3(fwd.y, -fwd.x, 0.0)
+                        targetPos      = GetEntityCoords(veh) - rightVec * 2.2
+                    end
+                    TaskGoToCoordAnyMeans(buyerData.ped, targetPos.x, targetPos.y, targetPos.z, 1.5, 0, 0, 786603, 3212836864)
                     lastMoveUpdate = GetGameTimer()
                 end
             else
@@ -501,7 +531,32 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
 
             local shouldInteract = false
 
-            if Config.AutoSell and Config.AutoSell.enabled then
+            -- Drive-through mode: buyer walked up to the vehicle, auto-trigger sale
+            if isDriveThru then
+                -- Cancel if the player has exited their vehicle
+                if not IsPedInAnyVehicle(PlayerPedId()) then
+                    Config.Notify("You left the vehicle — drive-thru cancelled.", "error")
+                    Config.hideTextUI()
+                    removeTargetFromEntity(buyerData.ped)
+                    hardDeletePed(buyerData.ped)
+                    buyerSpawned    = false
+                    currentBuyerPed = nil
+                    isDriveThru     = false
+                    resetSellState()
+                    return
+                end
+                local trigDist = Config.DriveThru and Config.DriveThru.triggerDist or 3.5
+                if distanceToBuyer < trigDist and not isSaleAnimating then
+                    if autoSellTimer == 0 then
+                        autoSellTimer = GetGameTimer()
+                    elseif GetGameTimer() - autoSellTimer >= (Config.DriveThru and Config.DriveThru.autoDelay or 1500) then
+                        shouldInteract = true
+                        autoSellTimer  = 0
+                    end
+                else
+                    autoSellTimer = 0
+                end
+            elseif Config.AutoSell and Config.AutoSell.enabled then
                 if distanceToBuyer < 2.5 and not isSaleAnimating then
                     if autoSellTimer == 0 then
                         autoSellTimer = GetGameTimer()
@@ -568,10 +623,22 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
                     if isSelling then TriggerEvent("flake_drugselling:spawnBuyer") end
                     return
                 end
-                if math.random(100) <= drugConfig.reject then
+                -- Apply heat-based rejection bonus (client-side modifier)
+                local baseReject    = drugConfig.reject
+                local heatRejectAdd = GetHeatRejectBonus and GetHeatRejectBonus() or 0
+                local effectiveReject = math.min(baseReject + heatRejectAdd, 95)
+
+                if math.random(100) <= effectiveReject then
                     Config.Notify(Config.Notifications.saleRejected, "error")
 
-                    if shouldRobPlayer() and not isRobberyActive then
+                    -- Drive-thru can't be robbed (customer just drives away reference)
+                    if isDriveThru then
+                        hardDeletePed(buyerData.ped)
+                        buyerSpawned    = false
+                        currentBuyerPed = nil
+                        Wait(4000)
+                        if isSelling then TriggerEvent("flake_drugselling:spawnBuyer") end
+                    elseif shouldRobPlayer() and not isRobberyActive then
                         Wait(600)
                         removeTargetFromEntity(buyerData.ped)
                         buyerSpawned    = false
@@ -586,7 +653,9 @@ RegisterNetEvent('flake_drugselling:spawnBuyer', function()
                         if isSelling then TriggerEvent("flake_drugselling:spawnBuyer") end
                     end
                 else
-                    if shouldRobPlayer() and not isRobberyActive then
+                    if isDriveThru then
+                        sell_ped_drivethru(buyerData.ped, dItem, dCount)
+                    elseif shouldRobPlayer() and not isRobberyActive then
                         sell_ped_robbery(buyerData.ped, dItem, dCount)
                     else
                         sell_ped(buyerData.ped, dItem, dCount)
@@ -686,6 +755,21 @@ RegisterNetEvent('flake_drugselling:startSelling', function()
 
     Config.Notify(Config.Notifications.startedSelling, "success")
 
+    -- Instant cancel monitor: if the player moves too far during startup, cancel immediately
+    Citizen.CreateThread(function()
+        while isInSaleProcess and not buyerSpawned do
+            Wait(300)
+            if not isSelling then return end
+            local pos     = GetEntityCoords(PlayerPedId())
+            local maxDist = Config.Movement and Config.Movement.maxdistance or 100.0
+            if #(pos - startLocation) > maxDist then
+                Config.Notify(Config.Notifications.movedTooFar, "error")
+                resetSellState()
+                return
+            end
+        end
+    end)
+
     -- Phone animation thread
     Citizen.CreateThread(function()
         local playerPed  = PlayerPedId()
@@ -762,11 +846,17 @@ function sell_ped(buyerPed, drugItem, drugCount)
 
     TriggerServerEvent("flake_drugselling:server:sellDrug", drugItem, drugCount)
 
+    -- Apply heat-based dispatch bonus
     if Config.SaleAlerts.enable then
-        if math.random(100) <= Config.SaleAlerts.chance then
+        local baseChance = Config.SaleAlerts.chance
+        local heatBonus  = GetHeatDispatchBonus and GetHeatDispatchBonus() or 0
+        if math.random(100) <= math.min(baseChance + heatBonus, 95) then
             Config.Alerts(GetEntityCoords(playerPed))
         end
     end
+
+    AddHeat()
+    ShowHeatIndicator()
 
     removeTargetFromEntity(buyerPed)
     buyerSpawned    = false
@@ -779,6 +869,91 @@ function sell_ped(buyerPed, drugItem, drugCount)
         TriggerEvent("flake_drugselling:spawnBuyer")
     else
         isSaleAnimating = false
+        canStartNewSale = true
+    end
+end
+
+-- ============================================================
+-- DRIVE-THRU SALE (player stays in vehicle)
+-- Buyer walks up to the driver window; upper-body animation only
+-- ============================================================
+
+function sell_ped_drivethru(buyerPed, drugItem, drugCount)
+    isSaleAnimating = true
+    local playerPed = PlayerPedId()
+    local vehicle   = GetVehiclePedIsIn(playerPed, false)
+
+    -- Hard stop buyer movement so animation plays cleanly at the door
+    ClearPedTasks(buyerPed)
+    SetBlockingOfNonTemporaryEvents(buyerPed, true)
+
+    -- Snap buyer to driver-side door position and face the player
+    if DoesEntityExist(vehicle) then
+        local fwd       = GetEntityForwardVector(vehicle)
+        local rightVec  = vector3(fwd.y, -fwd.x, 0.0)
+        local doorPos   = GetEntityCoords(vehicle) - rightVec * 2.2
+        -- Slide ped to door position (tiny move so they don't warp)
+        TaskGoToCoordAnyMeans(buyerPed, doorPos.x, doorPos.y, doorPos.z, 1.5, 0, 0, 786603, 3212836864)
+        Wait(600)
+        ClearPedTasks(buyerPed)
+    end
+
+    TaskTurnPedToFaceEntity(buyerPed, playerPed, 1200)
+    Wait(900)  -- let turn complete before animation starts
+
+    RequestAnimDict("mp_common")
+    while not HasAnimDictLoaded("mp_common") do Wait(0) end
+
+    local drugConfig = Config.SellList[drugItem]
+    local propModel  = (drugConfig and drugConfig.prop) or "hei_prop_pill_bag_01"
+
+    RequestModel(propModel)
+    while not HasModelLoaded(propModel) do Wait(0) end
+
+    local drugProp = CreateObject(propModel, 0, 0, 0, true, true, true)
+    AttachEntityToEntity(drugProp, playerPed, GetPedBoneIndex(playerPed, 28422), 0.05, 0.01, -0.05, 0.0, 180.0, 0.0, true, true, false, true, 1, true)
+
+    -- Flag 49 = loop (1) + secondary upper-body (16) + allow corrections (32): plays while seated
+    TaskPlayAnim(playerPed, "mp_common", "givetake1_a", 8.0, -8.0, 2500, 49, 0, false, false, false)
+    Wait(1000)
+
+    -- Transfer prop to buyer hand
+    AttachEntityToEntity(drugProp, buyerPed, GetPedBoneIndex(buyerPed, 60309), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, true, true, false, true, 1, true)
+    TaskPlayAnim(buyerPed, "mp_common", "givetake1_a", 8.0, -8.0, 2000, 0, 0, false, false, false)
+    Wait(1200)
+
+    ClearPedTasks(playerPed)
+    ClearPedTasks(buyerPed)
+
+    Citizen.SetTimeout(1200, function() if DoesEntityExist(drugProp) then DeleteEntity(drugProp) end end)
+
+    TriggerServerEvent("flake_drugselling:server:sellDrug", drugItem, drugCount)
+
+    if Config.SaleAlerts.enable then
+        local baseChance = Config.SaleAlerts.chance
+        local heatBonus  = GetHeatDispatchBonus and GetHeatDispatchBonus() or 0
+        if math.random(100) <= math.min(baseChance + heatBonus, 95) then
+            Config.Alerts(GetEntityCoords(playerPed))
+        end
+    end
+
+    AddHeat()
+    ShowHeatIndicator()
+
+    removeTargetFromEntity(buyerPed)
+    buyerSpawned    = false
+    currentBuyerPed = nil
+    hardDeletePed(buyerPed)
+
+    if isSelling then
+        Wait(4000)
+        isSaleAnimating = false
+        -- Stay in drive-thru if still in a vehicle
+        isDriveThru = IsPedInAnyVehicle(PlayerPedId()) and (Config.DriveThru and Config.DriveThru.enabled or false)
+        TriggerEvent("flake_drugselling:spawnBuyer")
+    else
+        isSaleAnimating = false
+        isDriveThru     = false
         canStartNewSale = true
     end
 end
@@ -836,7 +1011,10 @@ function resetSellState()
     isInSaleProcess = false
     buyerSpawned    = false
     isSaleAnimating = false
+    isDriveThru     = false
+    selectedDrug    = nil
     interactedPeds  = {}
+    HideHeatIndicator()
 
     if currentBuyerPed then
         if DoesEntityExist(currentBuyerPed) then
@@ -866,6 +1044,7 @@ exports('usePhone', function(data, slot)
     local options = {}
 
     if isSelling or isInSaleProcess then
+        -- ── Active session controls ──────────────────────────────
         options[#options + 1] = {
             title       = 'Stop Selling',
             description = 'End your current drug selling session',
@@ -876,13 +1055,52 @@ exports('usePhone', function(data, slot)
             end
         }
     else
-        options[#options + 1] = {
-            title       = 'Start Selling',
-            description = 'Begin selling drugs to customers',
-            icon        = 'sack-dollar',
-            onSelect    = function()
-                TriggerEvent('flake_drugselling:startSelling')
+        -- ── Drug selection menu ──────────────────────────────────
+        local allDrugs  = lib.callback.await('flake_drugselling:getAllDrugs', false)
+        local heatTier  = GetHeatTier  and GetHeatTier()  or 1
+        local heatLabel = GetHeatLabel and GetHeatLabel() or 'COLD'
+
+        if allDrugs and #allDrugs > 0 then
+            for _, drug in ipairs(allDrugs) do
+                local dCfg = Config.SellList[drug.item]
+                if dCfg then
+                    options[#options + 1] = {
+                        title       = string.format('%s  (x%d)', dCfg.label, drug.count),
+                        description = string.format(
+                            '$%d – $%d / unit   •   +%d XP per sale',
+                            dCfg.price.min, dCfg.price.max, dCfg.addpoints
+                        ),
+                        icon        = 'sack-dollar',
+                        onSelect    = function()
+                            selectedDrug = drug.item
+                            TriggerEvent('flake_drugselling:startSelling')
+                        end
+                    }
+                end
             end
+        else
+            options[#options + 1] = {
+                title       = 'Nothing to Sell',
+                description = 'You have no drugs in your inventory.',
+                icon        = 'box-open',
+                disabled    = true,
+            }
+        end
+
+        -- ── Area heat readout ────────────────────────────────────
+        local heatIcons = { 'snowflake', 'temperature-low', 'fire', 'fire-flame-curved', 'fire-flame-simple' }
+        local heatDescs = {
+            'Cold — no extra heat, safe to operate.',
+            'Warm — slight uptick in dispatch chance.',
+            'Hot — elevated dispatch & rejection chance.',
+            'Blazing — heavy police response likely. Consider moving.',
+            'Burned — maximum heat. Relocate immediately.',
+        }
+        options[#options + 1] = {
+            title       = string.format('Area Heat: %s  [%d/5]', heatLabel, heatTier),
+            description = heatDescs[heatTier] or '',
+            icon        = heatIcons[heatTier] or 'fire',
+            disabled    = true,
         }
     end
 
@@ -895,6 +1113,14 @@ end)
 -- ============================================================
 
 function getDrugs()
+    -- If a specific drug was chosen via the phone menu, use it (verify player still has it)
+    if selectedDrug then
+        local count = lib.callback.await("flake_drugselling:getDrugCount", false, selectedDrug)
+        if count and count > 0 then
+            return selectedDrug, count
+        end
+        selectedDrug = nil  -- no longer in inventory, fall through to auto-pick
+    end
     local drugItem, drugCount = lib.callback.await("flake_drugselling:getallavailableDrugs", false)
     if drugItem and drugCount then return drugItem, drugCount end
     return nil, 0
