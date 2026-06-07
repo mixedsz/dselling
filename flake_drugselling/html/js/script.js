@@ -220,6 +220,26 @@ $(function() {
 
         } else if (data.action === 'showLevelUp') {
             showLevelUpNotification(data.level, data.type);
+
+        } else if (data.action === 'updateHeat') {
+            const tierColors = ['#6ec6ff', '#fff59d', '#ff8a65', '#ef5350', '#b71c1c'];
+            const color = tierColors[(data.tier || 1) - 1] || tierColors[0];
+            if (data.heat > 0) {
+                $('#heat-indicator').css('display', 'flex');
+                $('#heat-bar-fill').css({ 'width': data.heat + '%', 'background-color': color });
+                $('#heat-icon').css('color', color);
+                $('#heat-tier-label').text(data.label || 'COLD').css('color', color);
+            } else {
+                $('#heat-indicator').css('display', 'none');
+            }
+
+        } else if (data.action === 'showHeatIndicator') {
+            if (parseInt($('#heat-bar-fill').css('width')) > 0) {
+                $('#heat-indicator').css('display', 'flex');
+            }
+
+        } else if (data.action === 'hideHeatIndicator') {
+            $('#heat-indicator').css('display', 'none');
         }
     });
 

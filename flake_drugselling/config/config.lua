@@ -76,6 +76,42 @@ Config.RobberyChance   = { base = 8, autoSellBonus = 20 }
 Config.CustomerSnitch  = { enable = true, chances = 30 }
 Config.BlacklistedJobs = { 'police', 'ambulance' }
 
+-- ── Area Heat System ──────────────────────────────────────────
+-- Each successful sale raises heat; high heat means more heat
+-- means higher dispatch and rejection chances.
+-- Heat cools down passively after cooldownDelay seconds.
+Config.HeatSystem = {
+    enabled         = true,
+    increasePerSale = 20,    -- heat added per successful sale (0-100 scale)
+    cooldownDelay   = 20,    -- seconds after last sale before cooling begins
+    cooldownRate    = 3,     -- heat removed per second once cooling starts
+    -- Extra dispatch chance added at each heat tier (1 = cold, 5 = inferno)
+    dispatchBonus   = { 0, 10, 20, 35, 50 },
+    -- Extra rejection chance added at each heat tier
+    rejectBonus     = { 0, 5, 10, 15, 25 },
+}
+
+-- ── Drive-Through Sales ───────────────────────────────────────
+-- When enabled, players can sell while seated in a vehicle.
+-- The buyer NPC walks up to the driver-side window automatically.
+Config.DriveThru = {
+    enabled      = true,
+    triggerDist  = 3.5,   -- metres between buyer and vehicle to trigger sale
+    autoDelay    = 1500,  -- ms before auto-triggering (same feel as AutoSell)
+}
+
+-- ── Ped Behavior Profile ──────────────────────────────────────
+-- Controls how buyer NPCs behave after a sale/rejection.
+-- 'nervous'  – leaves quickly (3 s), spooked easily, lower robbery risk
+-- 'casual'   – default balanced behavior (6 s despawn)
+-- 'bold'     – lingers longer (10 s), hard to spook, higher robbery risk
+Config.PedBehavior = 'casual'
+Config.PedBehaviorProfiles = {
+    nervous = { despawnTime = 3000,  spookMult = 1.5, robMult = 0.5 },
+    casual  = { despawnTime = 6000,  spookMult = 1.0, robMult = 1.0 },
+    bold    = { despawnTime = 10000, spookMult = 0.5, robMult = 2.0 },
+}
+
 Config.Leaderboard = {
     title       = 'TOP SERVER DEALERS',
     subtitle    = 'Top drug dealers ranking by total XP',
